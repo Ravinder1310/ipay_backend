@@ -14,29 +14,203 @@ const generateReferralCode = () => {
 
 
 
-exports.signup = async (req, res) => {
-  try {
-    const { mobileNumber,email, password, name, referredBy, answer } = req.body;
+// exports.signup = async (req, res) => {
+//   try {
+//     const { mobileNumber,email, password, name, referredBy, answer } = req.body;
 
-    // Generate a referral code
-    const referralCode = generateReferralCode();
-    const newUser = new User({
-      mobileNumber,
-      email,
-      userName:name,
-      password: password.trim(),  // Store the original password
-      referralCode,
-      referredBy,
-      answer
-    });
+//     // Generate a referral code
+//     const referralCode = generateReferralCode();
+//     const newUser = new User({
+//       mobileNumber,
+//       email,
+//       userName:name,
+//       password: password.trim(),  // Store the original password
+//       referralCode,
+//       referredBy,
+//       answer
+//     });
     
+//     await newUser.save();
+//     const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
+//     res.status(201).json({newUser, token });
+//   } catch (err) {
+//     res.status(400).json({ error: err.message });
+//   }
+// };
+
+
+
+exports.signup = async (req, res) => {
+  const { email, mobileNumber, password, referredBy, preferredSide } = req.body;
+ 
+  console.log("dataa=>>>", req.body);
+
+  try {
+    // Check if the email already exists in the database
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
+      return res.status(400).json({ message: "Email already exists." });
+    }
+
+    // Check if the phone number already exists in the database
+    const existingPhone = await User.findOne({ mobileNumber });
+    if (existingPhone) {
+      return res.status(400).json({ message: "Phone number already exists." });
+    }
+
+    // 1. Check if this is the first user (no users in the system)
+    const userCount = await User.countDocuments();
+    if (userCount === 0) {
+
+      // If this is the first user, no need for referredBy or preferredSide
+      const newUser = new User({
+        email,
+        mobileNumber,
+        password,
+        referralCode: generateReferralCode(),
+        // referralCode: walletAddress,
+      });
+
+      await newUser.save();
+      return res
+        .status(201)
+        .json({ message: "First user successfully created!", user: newUser });
+    }
+
+    let parentUser;
+
+    // 2. If referredBy is provided, find the parent by referral code
+    if (referredBy) {
+      parentUser = await User.findOne({ referralCode: referredBy });
+      if (!parentUser) {
+        return res.status(400).json({ message: "Invalid referral code." });
+      }
+    }
+
+    // 4. Ensure the preferredSide input is valid
+    if (preferredSide !== "left" && preferredSide !== "right") {
+      return res
+        .status(400)
+        .json({ message: 'preferredSide must be either "left" or "right".' });
+    }
+
+    // 5. Traverse the binary tree to find an available preferredSide based on the user's choice (left or right)
+    const targetParent = await findAvailablepreferredSide(
+      parentUser,
+      preferredSide
+    );
+
+    // 6. If no preferredSide is available (this case is unlikely but can occur if something goes wrong)
+    if (!targetParent) {
+      return res
+        .status(500)
+        .json({
+          message: "No available preferredSide found. Please try again.",
+        });
+    }
+
+
+
+    console.log("wallet inside if ===>", req.body.walletAddress);
+
+    // 7. Create the new user
+    const newUser = new User({
+      email,
+      mobileNumber,
+      password,
+      referralCode: generateReferralCode(), // Implement a function to generate a unique referral code
+      // referralCode: walletAddress, // Implement a function to generate a unique referral code
+      referredBy: referredBy,
+      // referredBy: targetParent.referralCode,
+    });
+
+    // 8. Assign the user to the appropriate preferredSide (left or right)
+    if (preferredSide === "left" && !targetParent.leftChild) {
+      targetParent.leftChild = newUser._id;
+    } else if (preferredSide === "right" && !targetParent.rightChild) {
+      targetParent.rightChild = newUser._id;
+    }
+
+    // 9. Save both the parent and the new user
     await newUser.save();
-    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET);
-    res.status(201).json({newUser, token });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+    await targetParent.save();
+
+    // 10. Respond with success
+    return res
+      .status(201)
+      .json({ message: "User successfully created!", user: newUser });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: error.message });
   }
 };
+
+
+
+
+exports.getAllTeamTree = async (req, res) => {
+  const userId = req.params.userId;
+  try {
+    const user = await User.findById(userId).populate("leftChild rightChild");
+
+    // Create a recursive function to build the tree structure
+    const buildUserTree = (user) => {
+      if (!user) return null;
+
+      const leftChild = user.leftChild ? buildUserTree(user.leftChild) : null;
+      const rightChild = user.rightChild
+        ? buildUserTree(user.rightChild)
+        : null;
+
+      const tree = {
+        name: user.email, // You can change this to any user field like name
+        children: [],
+      };
+
+      if (leftChild) tree.children.push(leftChild);
+      if (rightChild) tree.children.push(rightChild);
+
+      return tree;
+    };
+
+    const treeData = buildUserTree(user);
+
+    res.json(treeData);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching user tree." });
+  }
+};
+
+// Recursive function to find an available preferredSide in the binary MLM tree
+const findAvailablepreferredSide = async (user, preferredSide) => {
+  // Check if the desired preferredSide is available
+  if (preferredSide === "left") {
+    if (!user.leftChild) {
+      return user; // Return the user if the left preferredSide is vacant
+    } else {
+      // Traverse down the left subtree
+      const leftChild = await User.findById(user.leftChild);
+      return await findAvailablepreferredSide(leftChild, "left"); // Continue recursively
+    }
+  } else if (preferredSide === "right") {
+    if (!user.rightChild) {
+      return user; // Return the user if the right preferredSide is vacant
+    } else {
+      // Traverse down the right subtree
+      const rightChild = await User.findById(user.rightChild);
+      return await findAvailablepreferredSide(rightChild, "right"); // Continue recursively
+    }
+  }
+}
+
+
+
+
+
+
 
 exports.login = async (req, res) => {
   try {
@@ -162,7 +336,7 @@ exports.forgotPasswordController = async (req, res) => {
   try {
     const { mobileNumber, answer, newPassword } = req.body;
     if (!mobileNumber) {
-      return res.status(400).send({ message: "Phone is required" });
+      return res.status(400).send({ message: "MobileNumber is required" });
     }
     if (!answer) {
       return res.status(400).send({ message: "Answer is required" });
@@ -175,7 +349,7 @@ exports.forgotPasswordController = async (req, res) => {
     if (!user) {
       return res.status(404).send({
         success: false,
-        message: "Wrong phone number or answer"
+        message: "Wrong mobile Number number or answer"
       });
     }
 
