@@ -136,6 +136,29 @@ exports.calculateDailyReferralProfits = async (userId) => {
   }
 };
 
+
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find();
+    res.status(200).json(users);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
+exports.getAllActiveUsers = async (req, res) => {
+  try {
+    const users = await User.find({ isActive: true }).lean();
+    res.status(200).json(users);
+  } catch (err) {
+    console.log("Error fetching active users:", err.message);
+    res.status(400).json({ error: err.message });
+  }
+};
+
+
+
+
 exports.myTeamMembers = async (req, res) => {
   const { id, level } = req.params;
 
