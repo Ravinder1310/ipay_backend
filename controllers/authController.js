@@ -85,6 +85,11 @@ exports.signup = async (req, res) => {
       if (!parentUser) {
         return res.status(400).json({ message: "Invalid referral code." });
       }
+    }else{
+      return res
+        .status(400)
+        .json({ message: "Referral Code is Required" })
+
     }
 
     // 4. Ensure the preferredSide input is valid
