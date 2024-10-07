@@ -211,30 +211,33 @@ const getUsersAtLevel = async (referralCode, level) => {
   return usersAtLevel;
 };
 
+
+
+
+
 exports.buyPackage = async (req, res) => {
-  console.log("req.bosy===>",req.body)
+  console.log("req.body===>", req.body);
   try {
     const pack1 = {
       package_Id: "SMART001",
       name: "Smart Package",
-      price: "699",
+      price: 699,
       des: "E-Book",
-      direct_ref_comission: "200",
-      b_capping: "700",
-      img: "/images/ebook.png",
+      direct_ref_comission: 200,
+      levelProfits: [200, 40, 20, 10, 5] // Level profits for pack1
     };
 
     const pack2 = {
       package_Id: "PRIME002",
       name: "Prime Package",
-      price: "1299",
+      price: 1299,
       des: "E-Book Bundle",
-      direct_ref_comission: "500",
-      b_capping: "1300",
-      img: "/images/ebook_bundle.png",
+      direct_ref_comission: 500,
+      levelProfits: [500, 100, 50, 25, 10] // Level profits for pack2
     };
+
     const { packageId, userId } = req.body;
-    console.log("body ==>", req.body);
+    console.log("body ===>", req.body);
 
     // Find the package by ID
     if (!packageId) {
@@ -242,7 +245,6 @@ exports.buyPackage = async (req, res) => {
     }
 
     let packageData;
-
     if (packageId === "SMART001") {
       packageData = pack1;
     } else if (packageId === "PRIME002") {
@@ -259,9 +261,7 @@ exports.buyPackage = async (req, res) => {
 
     // Check if the user has enough balance in recharge wallet
     if (user.rechargeWallet < packageData.price) {
-      return res
-        .status(400)
-        .json({ error: "Insufficient balance in recharge wallet." });
+      return res.status(400).json({ error: "Insufficient balance in recharge wallet." });
     }
 
     // Deduct the package price from user's recharge wallet
@@ -275,6 +275,7 @@ exports.buyPackage = async (req, res) => {
 
     // Save the updated user
     await user.save();
+    console.log("user referal code ==>", user.referredBy);
     console.log("user updated", user);
 
     // Save activation transaction
@@ -290,16 +291,60 @@ exports.buyPackage = async (req, res) => {
     await activation.save();
 
     console.log(packageData);
-    const parentUser = await User.findOne({referralCode:user.referredBy});
-    if (!parentUser) {
-      return res.status(404).json({ error: "Parent User not found" });
+
+    // Distribute profit to parent users based on levels
+    let currentUser = user;
+    let level = 0;
+
+    // Start with the parent of the user (i.e. the referrer)
+    let parentUser = await User.findOne({ referralCode: currentUser.referredBy });
+
+    while (parentUser && level < packageData.levelProfits.length + 15) {
+      // Calculate profit to distribute
+      const profit = level < 5 ? packageData.levelProfits[level] : 5; // From level 5 onwards, the profit is 5
+      
+      // Transaction data for level income
+      const transactionData = {
+        user: parentUser._id,
+        amount: level === 0 ? packageData.direct_ref_comission : profit, // Direct referral commission or level profit
+        fromUser: currentUser.referralCode, // The user who triggered the profit (the original buyer or the referrer)
+        level: level + 1, // Level starts from 1 for direct referral
+        package: packageData.name,
+        netIncome: parentUser.earningWallet + (level === 0 ? packageData.direct_ref_comission : profit),
+      };
+
+      // Create and save the level income transaction
+      const levelIncomeTransaction = new LevelIncomeTransaction(transactionData);
+      await levelIncomeTransaction.save();
+
+      console.log(`Transaction created for ${parentUser.email} at level ${level + 1}`, transactionData);
+
+      // Add the profit to the parent's wallet
+      if (level === 0) {
+        // Level 1: Direct referral commission to the parent of the user, not the user themselves
+        parentUser.earningWallet += packageData.direct_ref_comission;
+      } else {
+        // Other levels: Profit to the parent's parent (grandparent, etc.)
+        parentUser.earningWallet += profit;
+      }
+
+      await parentUser.save();
+
+      console.log(`Profit of ${profit} given to ${parentUser.email} at level ${level + 1}`);
+
+      // Move to the next parent (i.e., the parent of the current parentUser)
+      currentUser = parentUser;
+      parentUser = await User.findOne({ referralCode: currentUser.referredBy });
+
+      // Stop if no parent user is found
+      if (!parentUser) {
+        console.log(`No parent user found at level ${level + 1}. Stopping profit distribution.`);
+        break;
+      }
+
+      level++;
     }
 
-    parentUser.earningWallet += packageData.direct_ref_comission;
-    await parentUser.save();
-    // await this.calculateDailyProfits(user._id,packageData._id);
-    // await updateUplineBuisness(userId, packageId);
-    // await checkBusiness();
     res.status(200).json({
       message: "Package purchased successfully",
       package: packageData,
@@ -309,6 +354,110 @@ exports.buyPackage = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+
+
+
+// exports.buyPackage = async (req, res) => {
+//   console.log("req.bosy===>",req.body)
+//   try {
+//     const pack1 = {
+//       package_Id: "SMART001",
+//       name: "Smart Package",
+//       price: "699",
+//       des: "E-Book",
+//       direct_ref_comission: "200",
+//       b_capping: "700",
+//       img: "/images/ebook.png",
+//     };
+
+//     const pack2 = {
+//       package_Id: "PRIME002",
+//       name: "Prime Package",
+//       price: "1299",
+//       des: "E-Book Bundle",
+//       direct_ref_comission: "500",
+//       b_capping: "1300",
+//       img: "/images/ebook_bundle.png",
+//     };
+//     const { packageId, userId } = req.body;
+//     console.log("body ==>", req.body);
+
+//     // Find the package by ID
+//     if (!packageId) {
+//       return res.status(404).json({ error: "Package not found" });
+//     }
+
+//     let packageData;
+
+//     if (packageId === "SMART001") {
+//       packageData = pack1;
+//     } else if (packageId === "PRIME002") {
+//       packageData = pack2;
+//     } else {
+//       return res.status(404).json({ error: "Package not found" });
+//     }
+
+//     // Find the user who is purchasing the package
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({ error: "User not found" });
+//     }
+
+//     // Check if the user has enough balance in recharge wallet
+//     if (user.rechargeWallet < packageData.price) {
+//       return res
+//         .status(400)
+//         .json({ error: "Insufficient balance in recharge wallet." });
+//     }
+
+//     // Deduct the package price from user's recharge wallet
+//     user.rechargeWallet -= packageData.price;
+
+//     // Update user data
+//     user.active = true;
+//     user.packages.push(packageData.package_Id); // Add package to user's purchased packages
+//     user.purchaseDate.push(Date.now());
+//     user.business += packageData.price;
+
+//     // Save the updated user
+//     await user.save();
+//     console.log("user updated", user);
+
+//     // Save activation transaction
+//     const activation = new ActivationTransaction({
+//       user: user.referralCode,
+//       email: user.email,
+//       mobileNumber: user.mobileNumber,
+//       activateBy: "user",
+//       package: packageData.name,
+//       packagePrice: packageData.price,
+//       wallet: user.rechargeWallet,
+//     });
+//     await activation.save();
+
+//     console.log(packageData);
+//     const parentUser = await User.findOne({referralCode:user.referredBy});
+//     if (!parentUser) {
+//       return res.status(404).json({ error: "Parent User not found" });
+//     }
+
+//     parentUser.earningWallet += packageData.direct_ref_comission;
+//     await parentUser.save();
+//     // await this.calculateDailyProfits(user._id,packageData._id);
+//     // await updateUplineBuisness(userId, packageId);
+//     // await checkBusiness();
+//     res.status(200).json({
+//       message: "Package purchased successfully",
+//       package: packageData,
+//     });
+//   } catch (error) {
+//     console.log("error=>", error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
 
 exports.myProjects = async (req, res) => {
   try {
