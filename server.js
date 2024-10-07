@@ -8,6 +8,8 @@ const paymentRoutes = require('./routes/payment');
 const chatbotRoute = require('./routes/chatbot');
 const path = require('path');
 const upiPaymentRoutes = require('./routes/upiPayment')
+const apiRoutes = require('./routes/apiRoutes');
+const collectionRoutes = require('./routes/collection');
 const payoutRoutes = require('./routes/payout')
 const rechargeRoutes = require('./routes/rechargeRoutes');
 const { calculateDailyProfits, calculateDailyReferralProfits, uptimeRobot } = require('./controllers/userController');
@@ -46,8 +48,10 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/user', userRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/payment', paymentRoutes);
-app.use('/api/chatbot', chatbotRoute);
-app.use('/api/recharge', rechargeRoutes);
+app.use('/api/v1/chatbot', chatbotRoute);
+app.use('/api/v1/recharge', rechargeRoutes);
+app.use('/api/gateway', apiRoutes);
+app.use('/api/collection', collectionRoutes);
 // app.use('/api/v1/upi-payment',upiPaymentRoutes);
 app.use('/api/v1/payout',payoutRoutes);
 app.use('/api/v1/test-with',claimProfit)
