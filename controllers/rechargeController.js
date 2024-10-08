@@ -78,6 +78,8 @@ exports.recharge = async (req, res) => {
     console.log(`Generated Token: ${token}`);
 
     const tempUser =await  User.findById(userId)
+    console.log("temmmmmpppp user",tempUser);
+    
     // Prepare data for API request
     const postData = {
         username: 'APIRA6478033', // Use hardcoded username
@@ -101,8 +103,10 @@ exports.recharge = async (req, res) => {
 
         // Step 5: Log the response from the API
         console.log('API Response:', response.data);
+        console.log("helllllllllllllllllllll",tempUser.referralCode);
 
         // Step 6: Create the main recharge transaction for the user
+        
        if(response.data.error_code===0){
         const userProfit = 2; // User will get a fixed Rs 2
         const recharge = new RechargeTransaction({
@@ -118,6 +122,7 @@ exports.recharge = async (req, res) => {
         const user = await User.findById(userId).populate('referredBy');
         let parent = user.referredBy;
         let level = 1;
+       
 
         const profitDistribution = [
             { level: 1, percentage: 0.4 }, // Parent (level 1)
@@ -125,7 +130,7 @@ exports.recharge = async (req, res) => {
             { level: 3, percentage: 0.2 }, // Level 3
             { level: 4, percentage: 0.1 }, // Level 4
         ];
-
+        
         // Distribute profit for first 4 levels with different percentages
         for (const { level, percentage } of profitDistribution) {
             if (parent && level <= 4) {
@@ -148,6 +153,8 @@ exports.recharge = async (req, res) => {
         }
 
         // Distribute 0.4% profit to users from level 5 to 25
+        
+        
         while (parent && level <= 25) {
             const profit = (0.4 / 100) * amount;
 
