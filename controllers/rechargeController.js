@@ -1,10 +1,76 @@
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const qs = require('querystring');
-
+const User = require('../models/User')
 // Recharge request
+// exports.recharge = async (req, res) => {
+//     const { operatorcode, number, amount, client_id, userId } = req.body;
+
+//     // Step 1: Generate Token
+//     const token = generateToken("divyasolutions53@gmail.com"); // Call your token generator function
+//     console.log(`Generated Token: ${token}`);
+
+//     // Prepare data for API request
+//     const postData = {
+//         username: 'APIRA6478033', // Use hardcoded username
+//         pwd: '766269',             // Use hardcoded password
+//         operatorcode,
+//         number,
+//         amount,
+//         client_id,
+//         token
+//     };
+//     console.log('Preparing to send API request with data:', postData);
+
+//     try {
+//         // Step 3: Convert postData to URL-encoded format
+//         const encodedData = qs.stringify(postData);
+        
+//         // Step 4: Make API request to recharge with correct headers
+//         const response = await axios.post('https://recharge.apiscript.in/mobile', encodedData, {
+//             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+//         });
+
+//         // Step 5: Log the response from the API
+//         console.log('API Response:', response.data);
+
+//         const recharge = new RechargeTransaction({
+//             userId,
+//             amount,
+//             number,
+//             profit:,
+//             type: "Mobile"
+//           });
+//           await recharge.save();
+
+
+
+//         // Step 6: Send the response back to the client
+//         res.json(response.data);
+//     } catch (error) {
+//         // Step 7: Log detailed error for debugging
+//         if (error.response) {
+//             console.error('API responded with an error:', error.response.data);
+//             res.status(error.response.status).json({
+//                 message: 'Error processing recharge from the API',
+//                 error: error.response.data,
+//             });
+//         } else if (error.request) {
+//             console.error('No response received from API:', error.request);
+//             res.status(500).json({ message: 'No response from API', error: error.request });
+//         } else {
+//             console.error('Error occurred while making the request:', error.message);
+//             res.status(500).json({ message: 'Error making API request', error: error.message });
+//         }
+//     }
+// };
+
+
+
+
+
 exports.recharge = async (req, res) => {
-    const { operatorcode, number, amount, client_id } = req.body;
+    const { operatorcode, number, amount, client_id, userId } = req.body;
 
     // Step 1: Generate Token
     const token = generateToken("divyasolutions53@gmail.com"); // Call your token generator function
@@ -34,10 +100,80 @@ exports.recharge = async (req, res) => {
         // Step 5: Log the response from the API
         console.log('API Response:', response.data);
 
-        // Step 6: Send the response back to the client
+        // Step 6: Create the main recharge transaction for the user
+        const userProfit = 2; // User will get a fixed Rs 2
+        const recharge = new RechargeTransaction({
+            userId,
+            amount,
+            number,
+            profit: userProfit,
+            type: "Mobile"
+        });
+        await recharge.save();
+
+        // Step 7: Save user's own profit transaction (₹2)
+        const userProfitTransaction = new RechargeTransaction({
+            userId,
+            amount,
+            number,
+            profit: userProfit,
+            type: "User Profit"
+        });
+        await userProfitTransaction.save();
+
+        // Step 8: Distribute profit to upline users (up to level 25)
+        const user = await User.findById(userId).populate('referredBy');
+        let parent = user.referredBy;
+        let level = 1;
+
+        const profitDistribution = [
+            { level: 1, percentage: 0.4 }, // Parent (level 1)
+            { level: 2, percentage: 0.3 }, // Level 2
+            { level: 3, percentage: 0.2 }, // Level 3
+            { level: 4, percentage: 0.1 }, // Level 4
+        ];
+
+        // Distribute profit for first 4 levels with different percentages
+        for (const { level, percentage } of profitDistribution) {
+            if (parent && level <= 4) {
+                const profit = (percentage / 100) * amount;
+
+                const transaction = new RechargeTransaction({
+                    userId: parent._id,
+                    amount,
+                    number,
+                    profit,
+                    type: "Referral Recharge",
+                    level,
+                });
+                await transaction.save();
+
+                parent = await User.findById(parent.referredBy); // Move to next parent in the hierarchy
+            }
+        }
+
+        // Distribute 0.4% profit to users from level 5 to 25
+        while (parent && level <= 25) {
+            const profit = (0.4 / 100) * amount;
+
+            const transaction = new RechargeTransaction({
+                userId: parent._id,
+                amount,
+                number,
+                profit,
+                type: "Referral Recharge",
+                level,
+            });
+            await transaction.save();
+
+            parent = await User.findById(parent.referredBy); // Move to next parent in the hierarchy
+            level++;
+        }
+
+        // Step 9: Send the response back to the client
         res.json(response.data);
     } catch (error) {
-        // Step 7: Log detailed error for debugging
+        // Step 10: Log detailed error for debugging
         if (error.response) {
             console.error('API responded with an error:', error.response.data);
             res.status(error.response.status).json({
@@ -53,6 +189,12 @@ exports.recharge = async (req, res) => {
         }
     }
 };
+
+
+
+
+
+
 
 // Fetch available plans
 // Fetch available plans

@@ -11,10 +11,9 @@ const LevelIncomeTransaction = require("../models/levelIncome");
 const GameIncomeTransaction = require("../models/gameIncome");
 const WithdrawPaymentRequest = require("../models/withdrawPaymentRequest");
 const ActivationTransaction = require("../models/activationTransaction");
+const MatchingIncome = require("../models/matchingIncome")
 // Payment Gateway API Details
-const API_URL = "https://tejafinance.in/api/prod/merchant/pg/payment/initiate";
-const TOKEN_URL = "https://tejafinance.in/api/prod/merchant/getToken";
-const RESPONSE_URL = "https://tejafinance.in/pg/payment/{token}/response";
+
 
 // Calculate Daily Referral Profits
 exports.calculateDailyReferralProfits = async (userId) => {
@@ -147,7 +146,7 @@ exports.getAllUsers = async (req, res) => {
 
 exports.getAllActiveUsers = async (req, res) => {
   try {
-    const users = await User.find({ isActive: true }).lean();
+    const users = await User.find({ active: true }).lean();
     res.status(200).json(users);
   } catch (err) {
     console.log("Error fetching active users:", err.message);
@@ -215,6 +214,72 @@ const getUsersAtLevel = async (referralCode, level) => {
 
 
 
+
+exports.UserMatchingIncome = async (req, res) => {
+  console.log("helo================================")
+  const userId = req.params.userId;
+console.log("bolt level -id =>",userId)
+  try {
+    const result = await MatchingIncome.find({ user: userId });
+
+    if (!result || result.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No trading income found for the specified user."
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    console.error("Error during retrieving trading income:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching bot level income. Please try again later."
+    });
+  }
+};
+
+
+
+
+
+
+
+exports.UserLevelIncome = async (req, res) => {
+  console.log("helo================================")
+  const userId = req.params.userId;
+console.log("bolt level -id =>",userId)
+  try {
+    const result = await LevelIncomeTransaction.find({ user: userId });
+
+    if (!result || result.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No trading income found for the specified user."
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: result
+    });
+
+  } catch (error) {
+    console.error("Error during retrieving trading income:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching bot level income. Please try again later."
+    });
+  }
+};
+
+
+
+
 exports.buyPackage = async (req, res) => {
   console.log("req.body===>", req.body);
   try {
@@ -272,9 +337,22 @@ exports.buyPackage = async (req, res) => {
     user.packages.push(packageData.package_Id); // Add package to user's purchased packages
     user.purchaseDate.push(Date.now());
     user.business += packageData.price;
+    await user.save();
+
+    const all_users = await User.find()
+    let all_id=[];
+
+    for(let i=0;i<all_users.length;i++){
+      all_id.push(all_users[i]._id)
+    } 
+    console.log("alll_id--->",all_id);
+    
+    for(let i=0;i<all_id.length;i++){
+      await calculateMatchingIncome(all_id[i])
+      console.log("useraaaa===>",all_id[i])
+    }
 
     // Save the updated user
-    await user.save();
     console.log("user referal code ==>", user.referredBy);
     console.log("user updated", user);
 
@@ -354,6 +432,101 @@ exports.buyPackage = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
+
+
+
+
+
+const countActiveUsersInSubtree = async (userId, count = 0) => {
+  const user = await User.findById(userId).populate('leftChild').populate('rightChild');
+  if (!user) return count;
+
+  // Increment count if the user is active
+  if (user.active) count++;
+
+  // Recursively check the left and right children
+  if (user.leftChild) {
+    count = await countActiveUsersInSubtree(user.leftChild._id, count);
+  }
+
+  if (user.rightChild) {
+    count = await countActiveUsersInSubtree(user.rightChild._id, count);
+  }
+
+  return count;
+};
+
+
+
+
+
+const calculateMatchingIncome = async (parentId) => {
+  try {
+    const user = await User.findById(parentId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // if (user.matchingIncome > 300) {
+    //   console.log("Matching Income exceeds $300");
+    //   return;
+    // }
+
+    // Count active users on both the left and right sides of the tree
+    const leftActiveCount = await countActiveUsersInSubtree(user.leftChild);
+    const rightActiveCount = await countActiveUsersInSubtree(user.rightChild);
+
+    console.log("Left active count:", leftActiveCount);
+    console.log("Right active count:", rightActiveCount);
+
+    // Check for matching pairs (2:1 or 1:2)
+    let isMatchingPair = false;
+    if (!user.hasReceivedFirstMatchingIncome) {
+      isMatchingPair = (leftActiveCount >= 2 && rightActiveCount >= 1) ||
+        (leftActiveCount >= 1 && rightActiveCount >= 2);
+      
+      if (isMatchingPair) {
+        user.hasReceivedFirstMatchingIncome = true;
+      }
+    } else {
+      isMatchingPair = (leftActiveCount === rightActiveCount);
+      if (isMatchingPair) {
+        // Update rank salary activation based on active counts (as per your logic)
+        updateRankSalary(user, leftActiveCount);
+      }
+    }
+
+    if (isMatchingPair) {
+      // Update the user's matching income
+      const matchingIncomeAmount = 100;  // Example: $5 for each matching pair
+      user.earningWallet += matchingIncomeAmount;
+      user.matchingIncome += matchingIncomeAmount;
+      user.hasReceivedFirstMatchingIncome = false;
+      await user.save();
+
+      // Store the matching income in the MatchingIncome collection
+      const matchingIncomeRecord = new MatchingIncome({
+        user: user._id,
+        referralCode: user.referralCode,
+        amount: matchingIncomeAmount,
+      });
+
+      await matchingIncomeRecord.save(); // Save the record to the database
+
+      console.log(`Matching income updated for user: ${user.email}, new income: $${user.matchingIncome}`);
+    } else {
+      console.log('No matching pair found.');
+    }
+
+    return user;
+  } catch (error) {
+    console.error(error);
+    throw new Error('Error in calculating matching income');
+  }
+};
+
 
 
 

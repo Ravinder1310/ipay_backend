@@ -26,7 +26,9 @@ const {
   getActivationList,
   getAllSelfBonusList,
   updateDailySalaryForAllActiveUsers,
-  getAllUsers
+  getAllUsers,
+  UserLevelIncome,
+  UserMatchingIncome
 } = require("../controllers/userController");
 const {
   getAllProducts,
@@ -39,6 +41,8 @@ router.get("/profile/:id", protect, getUserProfile);
 router.get("/my-products/:id", protect, myProjects);
 router.get("/all-users",  getAllUsers);
 router.post("/buy-package", protect, buyPackage);
+router.get("/level-income/:userId", protect, UserLevelIncome);
+router.get("/matching-income/:userId", protect, UserMatchingIncome);
 router.get("/referral-history", protect, getReferralHistory);
 router.get("/user-activity", protect, getUserActivity);
 router.get("/all-transactions/:id", protect, getAllTransactions);

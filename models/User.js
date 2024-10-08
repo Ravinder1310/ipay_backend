@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema(
     withdrawlCount: { type: Number, default: 0 },
     yesterdayWallet: { type: Number, default: 0 },
     earningWallet: { type: Number, default: 0 },
+    matchingIncome: { type: Number, default: 0 },
     business: { type: Number, default: 0 },
     vanAccoutStatus: { type: Boolean, default: false },
     packages: [ {type: String, required: true} ],
