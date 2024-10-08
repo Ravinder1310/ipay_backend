@@ -2,6 +2,7 @@ const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const qs = require('querystring');
 const User = require('../models/User')
+const RechargeTransaction = require("../models/rechargeTranscation")
 // Recharge request
 // exports.recharge = async (req, res) => {
 //     const { operatorcode, number, amount, client_id, userId } = req.body;
@@ -76,6 +77,7 @@ exports.recharge = async (req, res) => {
     const token = generateToken("divyasolutions53@gmail.com"); // Call your token generator function
     console.log(`Generated Token: ${token}`);
 
+    const tempUser =await  User.findById(userId)
     // Prepare data for API request
     const postData = {
         username: 'APIRA6478033', // Use hardcoded username
@@ -101,26 +103,17 @@ exports.recharge = async (req, res) => {
         console.log('API Response:', response.data);
 
         // Step 6: Create the main recharge transaction for the user
+       if(response.data.error_code===0){
         const userProfit = 2; // User will get a fixed Rs 2
         const recharge = new RechargeTransaction({
             userId,
             amount,
             number,
+            profitFrom:tempUser.referralCode,
             profit: userProfit,
             type: "Mobile"
         });
         await recharge.save();
-
-        // Step 7: Save user's own profit transaction (₹2)
-        const userProfitTransaction = new RechargeTransaction({
-            userId,
-            amount,
-            number,
-            profit: userProfit,
-            type: "User Profit"
-        });
-        await userProfitTransaction.save();
-
         // Step 8: Distribute profit to upline users (up to level 25)
         const user = await User.findById(userId).populate('referredBy');
         let parent = user.referredBy;
@@ -140,9 +133,11 @@ exports.recharge = async (req, res) => {
 
                 const transaction = new RechargeTransaction({
                     userId: parent._id,
+
                     amount,
                     number,
                     profit,
+                    profitFrom:tempUser.referralCode,
                     type: "Referral Recharge",
                     level,
                 });
@@ -161,6 +156,7 @@ exports.recharge = async (req, res) => {
                 amount,
                 number,
                 profit,
+                profitFrom:tempUser.referralCode,
                 type: "Referral Recharge",
                 level,
             });
@@ -170,6 +166,7 @@ exports.recharge = async (req, res) => {
             level++;
         }
 
+       }
         // Step 9: Send the response back to the client
         res.json(response.data);
     } catch (error) {
@@ -189,6 +186,40 @@ exports.recharge = async (req, res) => {
         }
     }
 };
+
+
+
+
+
+exports.UserRechargeIncome = async (req, res) => {
+    console.log("helo================================")
+    const userId = req.params.userId;
+  console.log("bolt level -id =>",userId)
+    try {
+      const result = await RechargeTransaction.find({userId });
+  
+      if (!result || result.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No trading income found for the specified user."
+        });
+      }
+  
+      return res.status(200).json({
+        success: true,
+        data: result
+      });
+  
+    } catch (error) {
+      console.error("Error during retrieving trading income:", error);
+      return res.status(500).json({
+        success: false,
+        message: "An error occurred while fetching bot level income. Please try again later."
+      });
+    }
+  };
+  
+
 
 
 

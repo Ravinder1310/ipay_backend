@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const rechargeController = require('../controllers/rechargeController');
+const {UserRechargeIncome} = require("../controllers/rechargeController")
 const { addBeneficiary, fundTransfer, refundOtp, refundTransaction, getTransactionStatus, getIfscDetails, getAccountBalance } = require('../controllers/fundTransferController');
 
 // Recharge route
 router.post('/recharge', rechargeController.recharge);
-
+router.get('/recharge-income/:userId', UserRechargeIncome)
 // Get plans route
 router.post('/get-plans', rechargeController.getPlans);
 // router.post('/fund-transfer', transferFunds);
