@@ -258,6 +258,7 @@ exports.login = async (req, res) => {
         name: user.name,
         mobileNumber: user.mobileNumber,
         email: user.email,
+        referralCode: user.referralCode
       },
       token,
     });
