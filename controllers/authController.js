@@ -41,7 +41,7 @@ const generateReferralCode = () => {
 
 
 exports.signup = async (req, res) => {
-  const { email, mobileNumber, password, referredBy, preferredSide } = req.body;
+  const { name, email, mobileNumber, password, referredBy, preferredSide } = req.body;
  
   console.log("dataa=>>>", req.body);
 
@@ -64,6 +64,7 @@ exports.signup = async (req, res) => {
 
       // If this is the first user, no need for referredBy or preferredSide
       const newUser = new User({
+        userName:name,
         email,
         mobileNumber,
         password,
@@ -120,6 +121,7 @@ exports.signup = async (req, res) => {
 
     // 7. Create the new user
     const newUser = new User({
+      userName:name,
       email,
       mobileNumber,
       password,

@@ -875,6 +875,28 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
+
+
+exports.getRegisteredUserDetails = async (req, res) => {
+  try {
+    const { mobileNumber, referredBy } = req.query; // Get from query instead of body
+    console.log("Query parameters=====>", req.query);
+
+    const user1 = await User.findOne({ mobileNumber });
+    const user2 = await User.findOne({ referralCode: referredBy });
+
+    if (user1 && user2) {
+      res.status(200).json({ userDetails: { user1, user2 } });
+    } else {
+      res.status(404).json({ error: "User not found" });
+    }
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+    console.log("Error:", err.message);
+  }
+};
+
+
 // Get Referral History
 
 exports.getReferralHistory = async (req, res) => {
