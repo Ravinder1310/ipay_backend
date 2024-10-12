@@ -365,15 +365,14 @@ exports.getAllBlockedUsers = async (req, res) => {
 
 exports.activateUser = async (req, res) => {
   // const { referralCode, packageId } = req.body;
-  // console.log("req.body====>", req.body);
+  console.log("req.body====>", req.body);
 
   try {
     const { packageId, referralCode } = req.body;
     // console.log('body ==>',req.body);
     
     // Find the package by ID
-    const packageData = await Product.findById(packageId);
-    if (!packageData) {
+    if (!packageId) {
       return res.status(404).json({ error: 'Package not found' });
     }
     // console.log(packageData);
@@ -387,12 +386,10 @@ exports.activateUser = async (req, res) => {
     // console.log('user ==>',user);
     
     user.active = true;
-    user.spinCount += 1;
-    user.packages.push(packageData);
+    user.packages.push(packageId);
     user.purchaseDate.push(Date.now());
-    user.claimBonus.push(false);
     user.myRoi.push(0);
-    user.business += packageData.price;
+    user.business += packageId.price;
 
     await user.save();
 
@@ -401,14 +398,14 @@ exports.activateUser = async (req, res) => {
       email: user.email,
       mobileNumber: user.mobileNumber,
       activateBy: 'admin',
-      package:packageData.name,
-      packagePrice:packageData.price  
+      package:packageId.name,
+      packagePrice:packageId.price  
     });
     // console.log('income ==>',profitTransaction);
     
     await activation.save();
     // await calculateDailyReferralProfits(user._id);
-    await calculateDailyProfits(user._id,packageData._id);
+    await calculateDailyProfits(user._id,packageId._id);
     await updateUplineBuisness(user._id, packageId);
     await checkBusiness();
     res.status(200).json({ message: 'User activated and package assigned', user });
@@ -593,6 +590,9 @@ exports.getActivationList = async (req, res) => {
 exports.updateUserBlockedStatus = async (req, res) => {
   const { id } = req.params;
   const { blocked } = req.body;
+
+  // console.log();
+  
 
   try {
     const user = await User.findById({ _id: id });
