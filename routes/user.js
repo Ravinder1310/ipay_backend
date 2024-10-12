@@ -29,7 +29,8 @@ const {
   getAllUsers,
   UserLevelIncome,
   UserMatchingIncome,
-  getRegisteredUserDetails
+  getRegisteredUserDetails,
+  countLeadForDashboard
 } = require("../controllers/userController");
 const {
   getAllProducts,
@@ -50,6 +51,7 @@ router.get("/all-transactions/:id", protect, getAllTransactions);
 router.get("/withdraw-transactions/:id", protect, getWithdrawPaymentRequest);
 router.get("/team-members/:id/:level", protect, myTeamMembers);
 router.get("/get-registered-user", getRegisteredUserDetails);
+router.get("/get-team-list/:userId", countLeadForDashboard);
 
 // Account routes
 router.patch("/update/account-details/:userId", updateAccountDetails);

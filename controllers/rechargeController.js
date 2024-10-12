@@ -103,12 +103,15 @@ exports.recharge = async (req, res) => {
 
         // Step 5: Log the response from the API
         console.log('API Response:', response.data);
-        console.log("helllllllllllllllllllll",tempUser.referralCode);
+        
 
         // Step 6: Create the main recharge transaction for the user
         
        if(response.data.error_code===0){
         const userProfit = 2; // User will get a fixed Rs 2
+
+        
+        
         const recharge = new RechargeTransaction({
             userId,
             amount,
@@ -120,10 +123,11 @@ exports.recharge = async (req, res) => {
         await recharge.save();
         // Step 8: Distribute profit to upline users (up to level 25)
         const user = await User.findById(userId).populate('referredBy');
-        let parent = user.referredBy;
+        let parentUser = user.referredBy;
+        let parent = await User.findOne({referralCode:parentUser});
         let level = 1;
-       
-
+        
+        
         const profitDistribution = [
             { level: 1, percentage: 0.4 }, // Parent (level 1)
             { level: 2, percentage: 0.3 }, // Level 2
@@ -135,10 +139,10 @@ exports.recharge = async (req, res) => {
         for (const { level, percentage } of profitDistribution) {
             if (parent && level <= 4) {
                 const profit = (percentage / 100) * amount;
+                console.log("helllllllllllllllllllll",parent);
 
                 const transaction = new RechargeTransaction({
-                    userId: parent._id,
-
+                    userId: parent._id || "",
                     amount,
                     number,
                     profit,
@@ -147,10 +151,13 @@ exports.recharge = async (req, res) => {
                     level,
                 });
                 await transaction.save();
-
-                parent = await User.findById(parent.referredBy); // Move to next parent in the hierarchy
+                
+                nextParent = parent.referredBy;
+                parent = await User.findOne({referredBy:nextParent}); // Move to next parent in the hierarchy
             }
         }
+
+        
 
         // Distribute 0.4% profit to users from level 5 to 25
         
@@ -159,7 +166,7 @@ exports.recharge = async (req, res) => {
             const profit = (0.4 / 100) * amount;
 
             const transaction = new RechargeTransaction({
-                userId: parent._id,
+                userId: parent._id || "",
                 amount,
                 number,
                 profit,
@@ -169,7 +176,8 @@ exports.recharge = async (req, res) => {
             });
             await transaction.save();
 
-            parent = await User.findById(parent.referredBy); // Move to next parent in the hierarchy
+                nextParent = parent.referredBy;
+                parent = await User.findOne({referredBy:nextParent}); // Move to next parent in the hierarchy
             level++;
         }
 

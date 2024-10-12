@@ -9,7 +9,7 @@ dotenv.config();
 
 const generateReferralCode = () => {
   const randomNumber = Math.floor(100000 + Math.random() * 900000); // Generates a 6-digit number
-  return `EM${randomNumber}`;
+  return `IP${randomNumber}`;
 };
 
 

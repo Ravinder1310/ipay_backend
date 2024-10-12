@@ -279,6 +279,30 @@ console.log("bolt level -id =>",userId)
 
 
 
+exports.countLeadForDashboard = async(req,res) => {
+  
+   try {
+    const userId = req.params.userId;
+    console.log("us ===>",req.params.userId);
+    
+    const user = await User.findById(userId);
+    const users = await User.find({referredBy:user.referralCode});
+
+    return res.status(200).json({
+      success: true,
+      data: users,
+      userMain:user
+    });
+   } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching team. Please try again later."
+    });
+   }
+}
+
+
+
 
 exports.buyPackage = async (req, res) => {
   console.log("req.body===>", req.body);
