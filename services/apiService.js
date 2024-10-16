@@ -82,6 +82,7 @@ module.exports = {
       beneficiary_id, 
       amount, 
       transfer_mode, 
+      client_id:12345,
       account_no 
     }),
   getBalance: () => apiCall("account/balance", {}),
